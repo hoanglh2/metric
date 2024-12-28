@@ -1,34 +1,53 @@
-version: '3.1'
+version: '3.8'
+
 services:
+  golang-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: golang-app
+    ports:
+      - "9000:9000" # Expose the Golang app's HTTP server for /ping and metrics
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    ports:
+      - "4317:4317"  # OTLP HTTP port for metric export
+      - "4316:4316"  # OTLP HTTP port for trace export
+      - "9091:9091"  # Prometheus exporter port
+    volumes:
+    - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    command: [ "--config", "/etc/otel-collector-config.yaml" ]
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"  # Expose Prometheus web UI
+    volumes:
+      - ./prometheus/:/etc/prometheus/  # Prometheus config file
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - golang-app
+
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Expose Grafana web UI
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Set Grafana admin password
+    depends_on:
+      - prometheus
+    links:
+      - prometheus
     volumes:
-      - grafana-storage:/var/lib/grafana
-  golang:
-    build:
-      context: ./
-      dockerfile: Dockerfile
-    container_name: golang
-    restart: always
-    ports:
-      - '9000:9000'
-  prometheus:
-    image: prom/prometheus:v2.24.0
-    volumes:
-      - ./prometheus/:/etc/prometheus/
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    ports:
-      - 9090:9090
-    restart: always
+      - grafana-data:/var/lib/grafana  # Persist Grafana data
 
 volumes:
-  grafana-storage:
-  prometheus_data:
+  grafana-data:
+

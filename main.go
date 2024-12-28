@@ -1,117 +1,126 @@
 package main
 
 import (
-	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"context"
+	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otelMetric "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv/v1.27.0"
 	"log"
-	"net/http"
-	"strconv"
+
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"time"
+
+	"go.opentelemetry.io/otel"
 )
-
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func NewResponseWriter(w http.ResponseWriter) *responseWriter {
-	return &responseWriter{w, http.StatusOK}
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
-var latencyHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Name:    "http_request_duration_seconds",
-	Help:    "Duration of HTTP requests",
-	Buckets: []float64{0.1, 0.5, 1, 2.5, 5, 10},
-}, []string{"status", "path", "method"})
-
-var totalRequests = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Name: "http_requests_total",
-		Help: "Number of get requests.",
-	},
-	[]string{"path"},
-)
-
-var postsLatencySummary = prometheus.NewSummary(prometheus.SummaryOpts{
-	Name: "post_request_duration_seconds",
-	Help: "Duration of requests to https://jsonplaceholder.typicode.com/posts",
-	Objectives: map[float64]float64{
-		0.5:  0.05,  // Median (50th percentile) with a 5% tolerance
-		0.9:  0.01,  // 90th percentile with a 1% tolerance
-		0.99: 0.001, // 99th percentile with a 0.1% tolerance
-	},
-})
-
-var responseStatus = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Name: "response_status",
-		Help: "Status of HTTP response",
-	},
-	[]string{"status"},
-)
-
-var httpDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Name: "http_response_time_seconds",
-	Help: "Duration of HTTP requests.",
-}, []string{"path"})
-
-func prometheusMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		route := mux.CurrentRoute(r)
-		path, _ := route.GetPathTemplate()
-		now := time.Now()
-		timer := prometheus.NewTimer(httpDuration.WithLabelValues(path))
-		rw := NewResponseWriter(w)
-		next.ServeHTTP(rw, r)
-
-		postsLatencySummary.Observe(time.Since(now).Seconds())
-		statusCode := rw.statusCode
-		latencyHistogram.With(prometheus.Labels{
-			"method": r.Method, "path": path, "status": strconv.Itoa(statusCode),
-		}).Observe(time.Since(now).Seconds())
-		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
-		totalRequests.WithLabelValues(path).Inc()
-
-		timer.ObserveDuration()
-	})
-}
-
-func init() {
-	prometheus.Register(totalRequests)
-	prometheus.Register(responseStatus)
-	prometheus.Register(httpDuration)
-	prometheus.Register(latencyHistogram)
-	prometheus.Register(postsLatencySummary)
-}
 
 func main() {
-	router := mux.NewRouter()
-	router.Use(prometheusMiddleware)
+	// Set up OTLP exporter for metrics
+	ctx := context.Background()
+	exporter, err := otlpmetrichttp.New(ctx,
+		otlpmetrichttp.WithInsecure(),
+		otlpmetrichttp.WithEndpoint("otel-collector:4317"),
+	) // OTLP export via HTTP (default)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Set up OTLP exporter for traces
+	exp, err := otlptrace.New(ctx, otlptracehttp.NewClient(
+		otlptracehttp.WithEndpoint("otel-collector:4316"),
+		otlptracehttp.WithInsecure(),
+	))
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Create a MeterProvider with the OTLP exporter
+	meterProvider := metric.NewMeterProvider(
+		metric.WithReader(metric.NewPeriodicReader(
+			exporter,
+			metric.WithInterval(5*time.Second),
+			metric.WithTimeout(2*time.Second)),
+		),
+		metric.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("my-go-app"),
+		)),
+	)
+	defer func() {
+		if err = meterProvider.Shutdown(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	// Prometheus endpoint
-	router.Path("/prometheus").Handler(promhttp.Handler())
+	traceProvider := trace.NewTracerProvider(
+		trace.WithBatcher(exp),
+		trace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("my-go-app"),
+		)),
+	)
+	defer func() {
+		if err = traceProvider.Shutdown(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	router.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("pong"))
+	// Set the global meter provider
+	otel.SetMeterProvider(meterProvider)
+	otel.SetTracerProvider(traceProvider)
+
+	r := gin.Default()
+
+	r.Use(NewMetricMiddleware(otel.GetMeterProvider().Meter("my-go-app")))
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "pong",
+		})
 	})
-	router.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+	r.GET("/hello", func(c *gin.Context) {
+		time.Sleep(1 * time.Second)
+		c.JSON(200, gin.H{
+			"message": "hello",
+		})
 	})
+	r.GET("/world", func(c *gin.Context) {
+		time.Sleep(2 * time.Second)
+		c.JSON(200, gin.H{
+			"message": "world",
+		})
+	})
+	err = r.Run(":9000")
+	if err != nil {
+		panic(err)
+	}
+}
 
-	// Serving static files
-	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./static/")))
+func NewMetricMiddleware(meter otelMetric.Meter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		durationHistogram, _ := meter.Int64Histogram("http.server.latency",
+			otelMetric.WithUnit("ms"),
+			otelMetric.WithExplicitBucketBoundaries(0.5, 0.9, 0.95, 0.99),
+		)
 
-	fmt.Println("Serving requests on port 9000")
-	err := http.ListenAndServe(":9000", router)
-	log.Fatal(err)
+		initialTime := time.Now()
+
+		c.Next()
+		duration := time.Since(initialTime)
+
+		pathTemplate := c.Request.URL.Path
+		metricAttributes := attribute.NewSet(
+			semconv.URLPath(pathTemplate),
+			semconv.HTTPRequestMethodKey.String(c.Request.Method),
+			semconv.HTTPResponseStatusCode(c.Writer.Status()),
+		)
+
+		durationHistogram.Record(
+			c,
+			duration.Milliseconds(),
+			otelMetric.WithAttributeSet(metricAttributes),
+		)
+	}
 }
