@@ -19,20 +19,31 @@ services:
       - "4316:4316"  # OTLP HTTP port for trace export
       - "9091:9091"  # Prometheus exporter port
     volumes:
-    - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     command: [ "--config", "/etc/otel-collector-config.yaml" ]
 
-  prometheus:
-    image: prom/prometheus:v2.47.0
-    container_name: prometheus
+  #  prometheus:
+  #    image: prom/prometheus:v2.47.0
+  #    container_name: prometheus
+  #    ports:
+  #      - "9090:9090"  # Expose Prometheus web UI
+  #    volumes:
+  #      - ./prometheus/:/etc/prometheus/  # Prometheus config file
+  #    command:
+  #      - '--config.file=/etc/prometheus/prometheus.yml'
+  #    depends_on:
+  #      - golang-app
+
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoria-metrics
     ports:
-      - "9090:9090"  # Expose Prometheus web UI
-    volumes:
-      - ./prometheus/:/etc/prometheus/  # Prometheus config file
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-    depends_on:
-      - golang-app
+      - "8428:8428"  # Expose VictoriaMetrics web UI and ingestion port
+#    volumes:
+#      - victoria-metrics-data:/victoria-metrics-data
+    environment:
+      - HTTP_LISTEN_ADDR=:8428
+    restart: always
 
   grafana:
     image: grafana/grafana:latest
@@ -42,12 +53,14 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin  # Set Grafana admin password
     depends_on:
-      - prometheus
+      - victoria-metrics
     links:
-      - prometheus
+      - victoria-metrics
     volumes:
       - grafana-data:/var/lib/grafana  # Persist Grafana data
 
 volumes:
   grafana-data:
 
+#  victoria-metrics-data:
+#    driver: local

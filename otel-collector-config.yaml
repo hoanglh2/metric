@@ -8,12 +8,16 @@ receivers:
 processors:
   batch:
 exporters:
-  prometheus:
-    endpoint: "0.0.0.0:9091"
+  #  prometheus:
+  #    endpoint: "0.0.0.0:9091"
+  prometheusremotewrite:
+    endpoint: "http://victoria-metrics:8428/api/v1/write"
+#  oltphttp/victoriametrics:
+#    metrics_endpoint: "http://victoria-metrics:8428/api/v1/write"
 
 service:
   pipelines:
     metrics:
       receivers: [ otlp ]
       processors: [ batch ]
-      exporters: [ prometheus ]
+      exporters: [ prometheusremotewrite ]
