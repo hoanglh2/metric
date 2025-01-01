@@ -6,12 +6,14 @@ receivers:
       http:
         endpoint: "0.0.0.0:4317"
 processors:
-  batch:
+  deltatocumulative:
+    max_stale: 5m
 exporters:
   #  prometheus:
   #    endpoint: "0.0.0.0:9091"
-  prometheusremotewrite:
-    endpoint: "http://victoria-metrics:8428/api/v1/write"
+  otlphttp/victoriametrics:
+    metrics_endpoint: "http://victoria-metrics:8428/opentelemetry/v1/metrics"
+#    endpoint: "http://victoria-metrics:8428/opentelemetry/v1/metrics"
 #  oltphttp/victoriametrics:
 #    metrics_endpoint: "http://victoria-metrics:8428/api/v1/write"
 
@@ -19,5 +21,5 @@ service:
   pipelines:
     metrics:
       receivers: [ otlp ]
-      processors: [ batch ]
-      exporters: [ prometheusremotewrite ]
+      processors: [ deltatocumulative ]
+      exporters: [ otlphttp/victoriametrics ]
