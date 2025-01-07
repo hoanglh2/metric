@@ -101,7 +101,7 @@ remoteWrite:
 #     - action: keep
 #       source_labels: [env]
 #       regex: "dev"
- - url: http://vm-single-victoria-metrics-single-server:8428/api/v1/write
+ - url: http://victoria-metrics-victoria-metrics-single-server-0:8428/api/v1/write
 # -- VMAgent extra command line arguments
 extraArgs:
   envflag.enable: true
@@ -646,7 +646,7 @@ config:
         - role: pod
           namespaces:
             names:
-              - application
+              - gea-be-dev
       relabel_configs:
         - action: drop
           source_labels: [__meta_kubernetes_pod_container_init]

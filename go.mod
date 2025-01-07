@@ -3,6 +3,8 @@ module metric
 go 1.23.0
 
 require (
+	connectrpc.com/connect v1.17.0
+	connectrpc.com/otelconnect v0.7.1
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-resty/resty/v2 v2.16.2
 	github.com/prometheus/client_golang v1.20.5
