@@ -1,23 +1,16 @@
-FROM golang:1.23-alpine
 
-# Set the Current Working Directory inside the container
+#Build
+FROM golang:1.23-alpine AS builder
 WORKDIR /app
-
-RUN export GO111MODULE=on
-
-# Copy go mod and sum files
-COPY go.mod go.sum ./
-
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+COPY go.mod ./
+COPY go.sum ./
 RUN go mod download
-
 COPY . .
-
-# Build the application
-RUN go build -o main .
-
-# Expose port 9000 to the outside world
-EXPOSE 9000
-
-# Command to run the executable
-CMD ["./main"]
+ENV CGO_ENABLED=0
+ARG GOARCH_ARG=amd64
+RUN go build -o api
+# Runtime
+FROM alpine:3.14
+WORKDIR /app
+COPY --from=builder /app/api ./app-api
+ENTRYPOINT ["/app/app-api"]
