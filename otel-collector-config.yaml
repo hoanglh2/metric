@@ -9,7 +9,7 @@ processors:
   deltatocumulative:
     max_stale: 5m
 exporters:
-  #  prometheus:
+  #  prometheus.yaml:
   #    endpoint: "0.0.0.0:9091"
   otlphttp/victoriametrics:
     metrics_endpoint: "http://victoria-metrics:8428/opentelemetry/v1/metrics"

@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: application
+  namespace: gea-be-dev
   name: my-go-app
   annotations:
     prometheus.io/scrape: "true"
@@ -33,7 +33,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: application
+  namespace: gea-be-dev
   name: my-go-app-service
 spec:
   type: ClusterIP

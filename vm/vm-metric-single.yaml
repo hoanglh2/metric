@@ -553,11 +553,11 @@ server:
         # The relabeling allows the actual service scrape endpoint to be configured
         # via the following annotations:
         #
-        # * `prometheus.io/scrape`: Only scrape services that have a value of `true`
-        # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
+        # * `prometheus.yaml.io/scrape`: Only scrape services that have a value of `true`
+        # * `prometheus.yaml.io/scheme`: If the metrics endpoint is secured then you will need
         # to set this to `https` & most likely set the `tls_config` of the scrape config.
-        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
-        # * `prometheus.io/port`: If the metrics are exposed on a different port to the
+        # * `prometheus.yaml.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.yaml.io/port`: If the metrics are exposed on a different port to the
         # service then set this appropriately.
         #
         # Scrape rule using kubernetes service discovery for endpoints
@@ -610,11 +610,11 @@ server:
         # The relabeling allows the actual service scrape endpoint to be configured
         # via the following annotations:
         #
-        # * `prometheus.io/scrape-slow`: Only scrape services that have a value of `true`
-        # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
+        # * `prometheus.yaml.io/scrape-slow`: Only scrape services that have a value of `true`
+        # * `prometheus.yaml.io/scheme`: If the metrics endpoint is secured then you will need
         # to set this to `https` & most likely set the `tls_config` of the scrape config.
-        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
-        # * `prometheus.io/port`: If the metrics are exposed on a different port to the
+        # * `prometheus.yaml.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.yaml.io/port`: If the metrics are exposed on a different port to the
         # service then set this appropriately.
         #
         - job_name: "kubernetes-service-endpoints-slow"
@@ -667,7 +667,7 @@ server:
         # The relabeling allows the actual service scrape endpoint to be configured
         # via the following annotations:
         #
-        # * `prometheus.io/probe`: Only probe services that have a value of `true`
+        # * `prometheus.yaml.io/probe`: Only probe services that have a value of `true`
         #
         - job_name: "kubernetes-services"
           metrics_path: /probe
@@ -697,9 +697,9 @@ server:
         # The relabeling allows the actual pod scrape endpoint to be configured via the
         # following annotations:
         #
-        # * `prometheus.io/scrape`: Only scrape pods that have a value of `true`
-        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
-        # * `prometheus.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
+        # * `prometheus.yaml.io/scrape`: Only scrape pods that have a value of `true`
+        # * `prometheus.yaml.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.yaml.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
         #
         - job_name: "kubernetes-pods"
           kubernetes_sd_configs:
@@ -735,7 +735,7 @@ server:
 
     # -- Extra scrape configs that will be appended to `server.scrape.config`
     extraScrapeConfigs: []
-    # - job_name: 'prometheus-blackbox-exporter'
+    # - job_name: 'prometheus.yaml-blackbox-exporter'
     #   metrics_path: /probe
     #   params:
     #     module: [http_2xx]
@@ -748,7 +748,7 @@ server:
     #     - source_labels: [__param_target]
     #       target_label: instance
     #     - target_label: __address__
-    #       replacement: prometheus-blackbox-exporter:9115
+    #       replacement: prometheus.yaml-blackbox-exporter:9115
 
 # -- Add extra specs dynamically to this chart
 extraObjects: []

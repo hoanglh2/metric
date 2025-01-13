@@ -22,15 +22,15 @@ services:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     command: [ "--config", "/etc/otel-collector-config.yaml" ]
 
-  #  prometheus:
-  #    image: prom/prometheus:v2.47.0
-  #    container_name: prometheus
+  #  prometheus.yaml:
+  #    image: prom/prometheus.yaml:v2.47.0
+  #    container_name: prometheus.yaml
   #    ports:
   #      - "9090:9090"  # Expose Prometheus web UI
   #    volumes:
-  #      - ./prometheus/:/etc/prometheus/  # Prometheus config file
+  #      - ./prometheus.yaml/:/etc/prometheus.yaml/  # Prometheus config file
   #    command:
-  #      - '--config.file=/etc/prometheus/prometheus.yml'
+  #      - '--config.file=/etc/prometheus.yaml/prometheus.yaml.yml'
   #    depends_on:
   #      - golang-app
 

@@ -1,0 +1,49 @@
+mode: deployment
+image:
+  repository: "otel/opentelemetry-collector-contrib"
+presets:
+  clusterMetrics:
+    enabled: true
+config:
+  # deltatocumulative processor is needed to convert metrics with delta temporality to cumulative temporality.
+  # VictoriaMetrics doesn't support delta temporality. Skip this processor if you don't use delta temporality.
+  processors:
+    resourcedetection:
+      detectors: [ env, system ]
+    cumulativetodelta:
+    batch:
+      timeout: 10s
+  receivers:
+    postgresql:
+      endpoint: 113.161.84.134:5433
+      transport: tcp
+      username: gea-dev
+      password: "123456"
+      databases:
+        - gea-finance
+        - gea-iam
+      collection_interval: 10s
+      tls:
+        insecure: true
+  exporters:
+    prometheus:
+      #      compression: gzip
+      #      encoding: proto
+      # Setting below will work for sending data to VictoriaMetrics single-node version.
+      # Cluster version of VictoriaMetrics will require a different URL - https://docs.victoriametrics.com/cluster-victoriametrics/#url-format
+      endpoint: "0.0.0.0:9090" # Exposes metrics for Prometheus scraping
+  #      tls:
+  #        insecure: true
+  service:
+    pipelines:
+      metrics:
+        receivers: [ postgresql ]
+        processors: [ cumulativetodelta, batch, resourcedetection ]
+        exporters: [ prometheus ]
+ports:
+  prometheus:
+    enabled: true
+    protocol: TCP
+    containerPort: 9090
+    servicePort: 9090
+    hostPort: 9090
