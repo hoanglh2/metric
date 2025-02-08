@@ -2,14 +2,22 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	otelMetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/semconv/v1.27.0"
+	otelTrace "go.opentelemetry.io/otel/trace"
 	"log"
+	"os"
+
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -31,10 +39,41 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		panic("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")
+	}
+	fmt.Println("endpoint: ", endpoint)
+	traceExporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(
+		otlptracehttp.WithEndpoint(endpoint),
+		otlptracehttp.WithInsecure(),
+	))
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, _ := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			"",
+			semconv.ServiceName("my-go-app"),
+			semconv.ServiceVersion("v0.1.0"),
+		),
+	)
+
+	traceProvider := trace.NewTracerProvider(
+		trace.WithBatcher(traceExporter,
+			trace.WithBatchTimeout(2*time.Second),
+		),
+		trace.WithResource(res),
+		trace.WithSampler(trace.AlwaysSample()),
+	)
+	otel.SetTracerProvider(traceProvider)
 
 	r := gin.Default()
 	meter := otel.GetMeterProvider().Meter("my-go-app")
+	tracer := otel.GetTracerProvider().Tracer("my-go-app")
 	r.Use(NewMetricMiddleware(meter))
+	r.Use(NewTraceMiddleware(tracer))
 
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	r.GET("/ping", func(c *gin.Context) {
@@ -84,5 +123,18 @@ func NewMetricMiddleware(meter otelMetric.Meter) gin.HandlerFunc {
 			duration.Milliseconds(),
 			otelMetric.WithAttributeSet(metricAttributes),
 		)
+	}
+}
+
+func NewTraceMiddleware(tracer otelTrace.Tracer) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Start a span
+		_, span := tracer.Start(c, "HTTP Request")
+		defer span.End()
+
+		// Set the span name to the path of the request
+		span.SetAttributes(semconv.HTTPRouteKey.String(c.Request.URL.Path))
+
+		c.Next()
 	}
 }

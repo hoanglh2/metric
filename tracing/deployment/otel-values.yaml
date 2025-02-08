@@ -27,7 +27,7 @@ config:
 #      tls:
 #        insecure: true
     otlphttp/tempo:
-      endpoint: "tempo-distributor.grafana-tempo:4317"
+      endpoint: "http://tempo:4318"
       tls:
         insecure: true
   service:

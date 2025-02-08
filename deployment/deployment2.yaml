@@ -28,7 +28,7 @@ spec:
             - containerPort: 9000
           env:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "otel-opentelemetry-collector.log.svc.cluster.local:4318"
+              value: "otel-collector-opentelemetry-collector.metric.svc.cluster.local:4318"
 ---
 apiVersion: v1
 kind: Service
