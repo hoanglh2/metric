@@ -3,85 +3,47 @@ package main
 import (
 	"context"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 	otelMetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/semconv/v1.27.0"
 	"log"
-
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"time"
 
 	"go.opentelemetry.io/otel"
 )
 
 func main() {
+
 	// Set up OTLP exporter for metrics
 	ctx := context.Background()
-	exporter, err := otlpmetrichttp.New(ctx,
-		otlpmetrichttp.WithInsecure(),
-		otlpmetrichttp.WithEndpoint("otel-collector:4317"),
-	) // OTLP export via HTTP (default)
+	otelPromExporter, err := prometheus.New()
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
-	// Set up OTLP exporter for traces
-	exp, err := otlptrace.New(ctx, otlptracehttp.NewClient(
-		otlptracehttp.WithEndpoint("otel-collector:4316"),
-		otlptracehttp.WithInsecure(),
-	))
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Create a MeterProvider with the OTLP exporter
-	meterProvider := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(
-			exporter,
-			metric.WithInterval(5*time.Second),
-			metric.WithTimeout(2*time.Second)),
-		),
-		metric.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("my-go-app"),
-		)),
-	)
+	meterProvider := metric.NewMeterProvider(metric.WithReader(otelPromExporter))
+	otel.SetMeterProvider(meterProvider)
+
 	defer func() {
 		if err = meterProvider.Shutdown(ctx); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	traceProvider := trace.NewTracerProvider(
-		trace.WithBatcher(exp),
-		trace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("my-go-app"),
-		)),
-	)
-	defer func() {
-		if err = traceProvider.Shutdown(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
-	// Set the global meter provider
-	otel.SetMeterProvider(meterProvider)
-	otel.SetTracerProvider(traceProvider)
-
 	r := gin.Default()
+	meter := otel.GetMeterProvider().Meter("my-go-app")
+	r.Use(NewMetricMiddleware(meter))
 
-	r.Use(NewMetricMiddleware(otel.GetMeterProvider().Meter("my-go-app")))
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
 		})
 	})
 	r.GET("/hello", func(c *gin.Context) {
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		c.JSON(200, gin.H{
 			"message": "hello",
 		})
@@ -102,7 +64,7 @@ func NewMetricMiddleware(meter otelMetric.Meter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		durationHistogram, _ := meter.Int64Histogram("http.server.latency",
 			otelMetric.WithUnit("ms"),
-			otelMetric.WithExplicitBucketBoundaries(0.5, 0.9, 0.95, 0.99),
+			otelMetric.WithExplicitBucketBoundaries(5, 10, 25, 50, 75, 100, 250, 500, 1000, 2500, 5000),
 		)
 
 		initialTime := time.Now()

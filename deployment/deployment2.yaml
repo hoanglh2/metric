@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: application
+  name: my-go-app-2
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9000"
+    prometheus.io/path: "/metrics"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-go-app-2
+  template:
+    metadata:
+      labels:
+        app: my-go-app-2
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: my-go-app-2
+          image: hoanghs120/my-go-app-2:latest
+          ports:
+            - containerPort: 9000
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-opentelemetry-collector.log.svc.cluster.local:4318"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: application
+  name: my-go-app-2-service
+spec:
+  type: ClusterIP
+  selector:
+    app: my-go-app-2
+  ports:
+    - protocol: TCP
+      port: 9000
+      targetPort: 9000

@@ -158,7 +158,7 @@ config:
           - batch
         receivers:
           - otlp
-          - prometheus
+          - prometheus.yaml
       traces:
         exporters:
           - debug
@@ -527,7 +527,7 @@ podMonitor:
 
   # additional labels for the PodMonitor
   extraLabels: {}
-  #   release: kube-prometheus-stack
+  #   release: kube-prometheus.yaml-stack
 
 serviceMonitor:
   # The service monitor by default scrapes the metrics port.
@@ -539,7 +539,7 @@ serviceMonitor:
 
   # additional labels for the ServiceMonitor
   extraLabels: {}
-  #  release: kube-prometheus-stack
+  #  release: kube-prometheus.yaml-stack
   # Used to set relabeling and metricRelabeling configs on the ServiceMonitor
   # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config
   relabelings: []
@@ -615,7 +615,7 @@ networkPolicy:
 
   # Add additional ingress rules to specific ports
   # Useful to allow external hosts/services to access specific ports
-  # An example is allowing an external prometheus server to scrape metrics
+  # An example is allowing an external prometheus.yaml server to scrape metrics
   #
   # See the standard NetworkPolicy 'spec.ingress' definition for more info:
   # https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
